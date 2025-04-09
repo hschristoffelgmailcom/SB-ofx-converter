@@ -92,7 +92,6 @@ def extract_transactions_from_docx(docx_file, show_debug):
     if show_debug:
         st.subheader("🛠 DOCX Debug Preview")
     for i in range(len(lines) - 1):
-        line = lines[i]
         next_line = lines[i + 1].strip()
         parts = next_line.split()
         if show_debug:
@@ -105,7 +104,7 @@ def extract_transactions_from_docx(docx_file, show_debug):
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            desc = f"{line} {' '.join(parts[:-5])}".strip()
+            desc = f"{' '.join(parts[:-5])} {lines[i]}".strip()
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
@@ -148,7 +147,6 @@ if uploaded_file:
             transactions = []
             year = extract_year_from_lines(pdf_lines)
             for i in range(len(pdf_lines) - 1):
-                line = pdf_lines[i]
                 next_line = pdf_lines[i + 1]
                 parts = next_line.split()
                 if len(parts) < 6:
@@ -158,7 +156,7 @@ if uploaded_file:
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    desc = f"{line} {' '.join(parts[:-5])}".strip()
+                    desc = f"{' '.join(parts[:-5])} {pdf_lines[i]}".strip()
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
