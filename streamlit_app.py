@@ -176,6 +176,15 @@ if uploaded_file:
         st.success(f"Extracted {len(txns)} transactions.")
         st.dataframe(df[["date", "type", "amount", "desc"]])
 
+        total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
+        total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
+        difference = total_credits + total_debits  # debits are negative
+
+        st.markdown("### 💰 Transaction Totals")
+        st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
+        st.write(f"**Total Credits:** R{total_credits:,.2f}")
+        st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
+
         ofx_data = convert_to_ofx(txns)
         st.download_button(
             label="Download OFX File",
