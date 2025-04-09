@@ -84,27 +84,25 @@ def extract_transactions_from_docx(docx_file):
         st.code(f"LINE: {line}")
         parts = line.split()
         st.code(f"PARTS: {parts}")
-        # Attempt to extract any transaction-looking line
-        for i in range(len(parts)):
-            if len(parts) >= 6 and (',' in parts[i] or '-' in parts[i]):
-                try:
-                    # try to extract backwards from amount to date and description
-                    amount = parts[i]
-                    date_parts = parts[i+1:i+3] if i+2 <= len(parts) else []
-                    if len(date_parts) == 2:
-                        date_str = f"{date_parts[0]} {date_parts[1]}"
-                        dt = datetime.strptime(date_str, "%m %d").replace(year=datetime.now().year)
-                        desc = ' '.join(parts[:i])
+        if len(parts) < 6:
+            continue
+        try:
+            # extract last 5 parts assuming: fee, amount, date1, date2, balance
+            balance = parts[-1]
+            date_str = f"{parts[-3]} {parts[-2]}"
+            dt = datetime.strptime(date_str, "%m %d").replace(year=datetime.now().year)
+            amount = parts[-4]
+            desc = ' '.join(parts[:-5])
 
-                        transactions.append({
-                            "date": dt.strftime("%Y%m%d"),
-                            "amount": format_amount(amount),
-                            "desc": desc.strip(),
-                            "type": "DEBIT" if '-' in amount else "CREDIT",
-                            "id": dt.strftime("%Y%m%d") + str(len(transactions))
-                        })
-                except:
-                    continue
+            transactions.append({
+                "date": dt.strftime("%Y%m%d"),
+                "amount": format_amount(amount),
+                "desc": desc.strip(),
+                "type": "DEBIT" if '-' in amount else "CREDIT",
+                "id": dt.strftime("%Y%m%d") + str(len(transactions))
+            })
+        except:
+            continue
     return transactions
 
 st.title("Standard Bank PDF/DOCX to OFX Converter")
@@ -138,25 +136,24 @@ if uploaded_file:
                         continue
                     lines = text.splitlines()
                     for parts in map(str.split, lines):
-                        for i in range(len(parts)):
-                            if len(parts) >= 6 and (',' in parts[i] or '-' in parts[i]):
-                                try:
-                                    amount = parts[i]
-                                    date_parts = parts[i+1:i+3] if i+2 <= len(parts) else []
-                                    if len(date_parts) == 2:
-                                        date_str = f"{date_parts[0]} {date_parts[1]}"
-                                        dt = datetime.strptime(date_str, "%m %d").replace(year=datetime.now().year)
-                                        desc = ' '.join(parts[:i])
+                        if len(parts) < 6:
+                            continue
+                        try:
+                            balance = parts[-1]
+                            date_str = f"{parts[-3]} {parts[-2]}"
+                            dt = datetime.strptime(date_str, "%m %d").replace(year=datetime.now().year)
+                            amount = parts[-4]
+                            desc = ' '.join(parts[:-5])
 
-                                        transactions.append({
-                                            "date": dt.strftime("%Y%m%d"),
-                                            "amount": format_amount(amount),
-                                            "desc": desc.strip(),
-                                            "type": "DEBIT" if '-' in amount else "CREDIT",
-                                            "id": dt.strftime("%Y%m%d") + str(len(transactions))
-                                        })
-                                except:
-                                    continue
+                            transactions.append({
+                                "date": dt.strftime("%Y%m%d"),
+                                "amount": format_amount(amount),
+                                "desc": desc.strip(),
+                                "type": "DEBIT" if '-' in amount else "CREDIT",
+                                "id": dt.strftime("%Y%m%d") + str(len(transactions))
+                            })
+                        except:
+                            continue
             return transactions
 
         txns = extract_transactions(uploaded_file)
