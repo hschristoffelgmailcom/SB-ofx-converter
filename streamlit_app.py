@@ -175,6 +175,7 @@ if uploaded_file:
 
     if txns:
         df = pd.DataFrame(txns)
+        df.index = df.index + 1
         st.success(f"Extracted {len(txns)} transactions.")
         st.dataframe(df[["date", "type", "amount", "desc"]])
 
