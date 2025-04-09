@@ -112,7 +112,7 @@ def extract_transactions_from_docx(docx_file, show_debug):
                 "amount": format_amount(amount),
                 "desc": desc.strip(),
                 "type": "DEBIT" if '-' in amount else "CREDIT",
-                "id": dt.strftime("%Y%m%d") + str(len(transactions)+1)
+                "id": dt.strftime("%Y%m%d") + str(i+1)
             })
         except:
             continue
@@ -165,7 +165,7 @@ if uploaded_file:
                         "amount": format_amount(amount),
                         "desc": desc.strip(),
                         "type": "DEBIT" if '-' in amount else "CREDIT",
-                        "id": dt.strftime("%Y%m%d") + str(len(transactions)+1)
+                        "id": dt.strftime("%Y%m%d") + str(i+1)
                     })
                 except:
                     continue
