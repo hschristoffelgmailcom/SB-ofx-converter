@@ -104,8 +104,10 @@ def extract_transactions_from_docx(docx_file, show_debug):
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            desc_line = lines[i-1] if i > 0 else ""
-            desc = desc_line + ' ' + ' '.join(parts[:-5])
+            if i > 1 and lines[i - 2].strip().upper() != "BALANCE BROUGHT FORWARD":
+                desc = lines[i - 2] + " " + lines[i - 1] + ' ' + ' '.join(parts[:-5])
+            else:
+                desc = lines[i - 1] + ' ' + ' '.join(parts[:-5])
 
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
@@ -157,8 +159,10 @@ if uploaded_file:
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    desc_line = pdf_lines[i-1] if i > 0 else ""
-                    desc = desc_line + ' ' + ' '.join(parts[:-5])
+                    if i > 1 and pdf_lines[i - 2].strip().upper() != "BALANCE BROUGHT FORWARD":
+                        desc = pdf_lines[i - 2] + " " + pdf_lines[i - 1] + ' ' + ' '.join(parts[:-5])
+                    else:
+                        desc = pdf_lines[i - 1] + ' ' + ' '.join(parts[:-5])
 
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
