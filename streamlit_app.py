@@ -104,17 +104,17 @@ def extract_transactions_from_docx(docx_file, show_debug):
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            if i > 1 and lines[i - 2].strip().upper() != "BALANCE BROUGHT FORWARD":
-                desc = lines[i - 2] + " " + lines[i - 1] + ' ' + ' '.join(parts[:-5])
+            if "BALANCE BROUGHT FORWARD" in lines[i - 3].upper():
+                desc = lines[i - 2] + ' ' + ' '.join(parts[:-5])
             else:
-                desc = lines[i - 1] + ' ' + ' '.join(parts[:-5])
+                desc = lines[i - 3] + ' ' + lines[i - 2] + ' ' + ' '.join(parts[:-5])
 
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
                 "desc": desc.strip(),
                 "type": "DEBIT" if '-' in amount else "CREDIT",
-                "id": dt.strftime("%Y%m%d") + str(i+1)
+                "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
         except:
             continue
@@ -159,17 +159,17 @@ if uploaded_file:
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    if i > 1 and pdf_lines[i - 2].strip().upper() != "BALANCE BROUGHT FORWARD":
-                        desc = pdf_lines[i - 2] + " " + pdf_lines[i - 1] + ' ' + ' '.join(parts[:-5])
+                    if "BALANCE BROUGHT FORWARD" in pdf_lines[i - 3].upper():
+                        desc = pdf_lines[i - 2] + ' ' + ' '.join(parts[:-5])
                     else:
-                        desc = pdf_lines[i - 1] + ' ' + ' '.join(parts[:-5])
+                        desc = pdf_lines[i - 3] + ' ' + pdf_lines[i - 2] + ' ' + ' '.join(parts[:-5])
 
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
                         "desc": desc.strip(),
                         "type": "DEBIT" if '-' in amount else "CREDIT",
-                        "id": dt.strftime("%Y%m%d") + str(i+1)
+                        "id": dt.strftime("%Y%m%d") + str(i + 1)
                     })
                 except:
                     continue
