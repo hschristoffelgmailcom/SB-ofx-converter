@@ -91,13 +91,15 @@ def extract_transactions_from_docx(docx_file, show_debug):
     year = extract_year_from_lines(lines)
     if show_debug:
         st.subheader("🛠 DOCX Debug Preview")
-    for i in range(len(lines)):
+    i = 0
+    while i < len(lines):
         line = lines[i]
         parts = line.split()
         if show_debug:
             st.code(f"LINE: {line}")
             st.code(f"PARTS: {parts}")
         if len(parts) < 6:
+            i += 1
             continue
         try:
             balance = parts[-1]
@@ -105,6 +107,12 @@ def extract_transactions_from_docx(docx_file, show_debug):
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
             desc = ' '.join(parts[:-5])
+            # Check next line for continuation
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not any(char.isdigit() for char in next_line):
+                    desc += ' ' + next_line.strip()
+                    i += 1
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
@@ -113,7 +121,8 @@ def extract_transactions_from_docx(docx_file, show_debug):
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
         except:
-            continue
+            pass
+        i += 1
     return transactions
 
 st.title("Standard Bank PDF/DOCX to OFX Converter")
@@ -146,9 +155,11 @@ if uploaded_file:
         def extract_transactions(pdf_lines):
             transactions = []
             year = extract_year_from_lines(pdf_lines)
-            for i in range(len(pdf_lines)):
+            i = 0
+            while i < len(pdf_lines):
                 parts = pdf_lines[i].split()
                 if len(parts) < 6:
+                    i += 1
                     continue
                 try:
                     balance = parts[-1]
@@ -156,6 +167,12 @@ if uploaded_file:
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
                     desc = ' '.join(parts[:-5])
+                    # Check next line for continuation
+                    if i + 1 < len(pdf_lines):
+                        next_line = pdf_lines[i + 1].strip()
+                        if next_line and not any(char.isdigit() for char in next_line):
+                            desc += ' ' + next_line.strip()
+                            i += 1
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
@@ -164,7 +181,8 @@ if uploaded_file:
                         "id": dt.strftime("%Y%m%d") + str(i + 1)
                     })
                 except:
-                    continue
+                    pass
+                i += 1
             return transactions
 
         txns = extract_transactions(lines)
