@@ -91,12 +91,11 @@ def extract_transactions_from_docx(docx_file, show_debug):
     year = extract_year_from_lines(lines)
     if show_debug:
         st.subheader("🛠 DOCX Debug Preview")
-    for i in range(len(lines) - 1):
+    for i in range(len(lines)):
         line = lines[i]
-        next_line = lines[i + 1]
-        parts = next_line.split()
+        parts = line.split()
         if show_debug:
-            st.code(f"LINE: {next_line}")
+            st.code(f"LINE: {line}")
             st.code(f"PARTS: {parts}")
         if len(parts) < 6:
             continue
@@ -105,11 +104,11 @@ def extract_transactions_from_docx(docx_file, show_debug):
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            desc = f"{line} {' '.join(parts[:-5])}".strip()
+            desc = ' '.join(parts[:-5])
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
-                "desc": desc,
+                "desc": desc.strip(),
                 "type": "DEBIT" if '-' in amount else "CREDIT",
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
@@ -147,10 +146,9 @@ if uploaded_file:
         def extract_transactions(pdf_lines):
             transactions = []
             year = extract_year_from_lines(pdf_lines)
-            for i in range(len(pdf_lines) - 1):
-                line = pdf_lines[i]
-                next_line = pdf_lines[i + 1]
-                parts = next_line.split()
+            for i in range(len(pdf_lines)):
+                line = pdf_lines[i].strip()
+                parts = line.split()
                 if len(parts) < 6:
                     continue
                 try:
@@ -158,11 +156,11 @@ if uploaded_file:
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    desc = f"{line} {' '.join(parts[:-5])}".strip()
+                    desc = ' '.join(parts[:-5])
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
-                        "desc": desc,
+                        "desc": desc.strip(),
                         "type": "DEBIT" if '-' in amount else "CREDIT",
                         "id": dt.strftime("%Y%m%d") + str(i + 1)
                     })
