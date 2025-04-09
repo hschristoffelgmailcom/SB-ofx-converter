@@ -78,11 +78,14 @@ NEWFILEUID:NONE
 def extract_transactions_from_docx(docx_file):
     transactions = []
     doc = Document(io.BytesIO(docx_file.read()))
+    st.subheader("🛠 DOCX Debug Preview")
     for para in doc.paragraphs:
         line = para.text.strip()
         if not line or line.startswith("Details") or line.startswith("Page"):
             continue
+        st.code(f"LINE: {line}")
         parts = line.split()
+        st.code(f"PARTS: {parts}")
         if len(parts) >= 6:
             try:
                 balance = parts[-1]
