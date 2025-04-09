@@ -91,29 +91,35 @@ def extract_transactions_from_docx(docx_file, show_debug):
     year = extract_year_from_lines(lines)
     if show_debug:
         st.subheader("🛠 DOCX Debug Preview")
-    for i in range(len(lines) - 1):
-        next_line = lines[i + 1].strip()
-        parts = next_line.split()
+    i = 0
+    while i < len(lines) - 1:
+        desc_line = lines[i].strip()
+        txn_line = lines[i + 1].strip()
+        parts = txn_line.split()
         if show_debug:
-            st.code(f"LINE: {next_line}")
+            st.code(f"DESC: {desc_line}")
+            st.code(f"LINE: {txn_line}")
             st.code(f"PARTS: {parts}")
         if len(parts) < 6:
+            i += 1
             continue
         try:
             balance = parts[-1]
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            desc = f"{' '.join(parts[:-5])} {lines[i]}".strip()
+            main_desc = ' '.join(parts[:-5])
+            full_desc = f"{desc_line} {main_desc}".strip()
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
-                "desc": desc,
+                "desc": full_desc,
                 "type": "DEBIT" if '-' in amount else "CREDIT",
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
         except:
-            continue
+            pass
+        i += 2
     return transactions
 
 st.title("Standard Bank PDF/DOCX to OFX Converter")
@@ -146,26 +152,31 @@ if uploaded_file:
         def extract_transactions(pdf_lines):
             transactions = []
             year = extract_year_from_lines(pdf_lines)
-            for i in range(len(pdf_lines) - 1):
-                next_line = pdf_lines[i + 1]
-                parts = next_line.split()
+            i = 0
+            while i < len(pdf_lines) - 1:
+                desc_line = pdf_lines[i].strip()
+                txn_line = pdf_lines[i + 1].strip()
+                parts = txn_line.split()
                 if len(parts) < 6:
+                    i += 1
                     continue
                 try:
                     balance = parts[-1]
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    desc = f"{' '.join(parts[:-5])} {pdf_lines[i]}".strip()
+                    main_desc = ' '.join(parts[:-5])
+                    full_desc = f"{desc_line} {main_desc}".strip()
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
-                        "desc": desc,
+                        "desc": full_desc,
                         "type": "DEBIT" if '-' in amount else "CREDIT",
                         "id": dt.strftime("%Y%m%d") + str(i + 1)
                     })
                 except:
-                    continue
+                    pass
+                i += 2
             return transactions
 
         txns = extract_transactions(lines)
