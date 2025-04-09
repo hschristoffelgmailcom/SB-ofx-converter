@@ -91,7 +91,7 @@ def extract_transactions_from_docx(docx_file, show_debug):
     year = extract_year_from_lines(lines)
     if show_debug:
         st.subheader("🛠 DOCX Debug Preview")
-    for i in range(1, len(lines)):
+    for i in range(len(lines)):
         line = lines[i]
         parts = line.split()
         if show_debug:
@@ -104,13 +104,11 @@ def extract_transactions_from_docx(docx_file, show_debug):
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            main_desc = ' '.join(parts[:-5])
-            desc_line = lines[i - 1].strip()
-            full_desc = f"{desc_line} {main_desc}".strip()
+            desc = ' '.join(parts[:-5])
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
-                "desc": full_desc,
+                "desc": desc.strip(),
                 "type": "DEBIT" if '-' in amount else "CREDIT",
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
@@ -148,7 +146,7 @@ if uploaded_file:
         def extract_transactions(pdf_lines):
             transactions = []
             year = extract_year_from_lines(pdf_lines)
-            for i in range(1, len(pdf_lines)):
+            for i in range(len(pdf_lines)):
                 line = pdf_lines[i].strip()
                 parts = line.split()
                 if len(parts) < 6:
@@ -158,13 +156,11 @@ if uploaded_file:
                     date_str = f"{parts[-3]} {parts[-2]}"
                     dt = datetime.strptime(date_str, "%m %d").replace(year=year)
                     amount = parts[-4]
-                    main_desc = ' '.join(parts[:-5])
-                    desc_line = pdf_lines[i - 1].strip()
-                    full_desc = f"{desc_line} {main_desc}".strip()
+                    desc = ' '.join(parts[:-5])
                     transactions.append({
                         "date": dt.strftime("%Y%m%d"),
                         "amount": format_amount(amount),
-                        "desc": full_desc,
+                        "desc": desc.strip(),
                         "type": "DEBIT" if '-' in amount else "CREDIT",
                         "id": dt.strftime("%Y%m%d") + str(i + 1)
                     })
