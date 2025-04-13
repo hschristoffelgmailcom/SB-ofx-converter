@@ -6,6 +6,8 @@ from docx import Document
 import io
 import re
 import fitz  # PyMuPDF for FNB
+import pytesseract
+from PIL import Image
 
 # Set page config for a modern look
 st.set_page_config(page_title="Bank Statement to OFX Converter", layout="centered")
@@ -173,6 +175,10 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     raw_lines = []
     for page in doc:
         text = page.get_text()
+        if not text.strip():
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            text = pytesseract.image_to_string(img)
         raw_lines.extend(text.splitlines())
     doc.close()
 
