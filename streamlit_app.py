@@ -134,46 +134,45 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
         "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
     }
 
-    for i, line in enumerate(raw_lines):
+    i = 0
+    while i < len(raw_lines) - 3:
+        line = raw_lines[i].strip()
         parts = line.split()
+
         if show_debug:
             st.code(f"FNB LINE: {line}")
 
-        if len(parts) >= 3 and parts[0].isdigit() and parts[1] in date_month_map:
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1] in date_month_map:
             try:
                 day = parts[0].zfill(2)
                 month = date_month_map[parts[1]]
-                desc_parts = []
-                amount = None
+                date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
 
-                for j in range(2, len(parts)):
-                    if re.match(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", parts[j]):
-                        amount = parts[j]
-                        break
-                    desc_parts.append(parts[j])
+                desc_line1 = ' '.join(parts[2:])
+                desc_line2 = raw_lines[i + 1].strip()
+                amount_line = raw_lines[i + 2].strip()
 
+                amount = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", amount_line)
                 if not amount:
+                    i += 1
                     continue
 
-                date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
-                txn_type = "CREDIT" if "Cr" in amount else "DEBIT"
-                clean_amount = format_amount(amount.replace("Cr", ""))
+                amt_text = amount.group(0)
+                txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
+                clean_amount = format_amount(amt_text)
 
                 transactions.append({
                     "date": date_obj.strftime("%Y%m%d"),
                     "amount": clean_amount,
-                    "desc": ' '.join(desc_parts).strip(),
+                    "desc": f"{desc_line1} {desc_line2}",
                     "type": txn_type,
                     "id": date_obj.strftime("%Y%m%d") + str(i + 1)
                 })
-
-                if show_debug:
-                    st.code(f"→ TXN: {txn_type} | {date_obj.strftime('%Y-%m-%d')} | {clean_amount:.2f} | {' '.join(desc_parts)}")
-
-            except Exception as e:
-                if show_debug:
-                    st.warning(f"Line skipped: {line} → {e}")
-
+                i += 4  # Skip to next transaction block
+            except:
+                i += 1
+        else:
+            i += 1
     return transactions
 
 # --- Streamlit App ---
