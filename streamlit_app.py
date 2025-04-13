@@ -175,7 +175,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     raw_lines = []
     for page in doc:
         text = page.get_text()
-        if not text.strip():
+        if not text.strip() or len(text.strip()) < 200:
             pix = page.get_pixmap()
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             text = pytesseract.image_to_string(img)
