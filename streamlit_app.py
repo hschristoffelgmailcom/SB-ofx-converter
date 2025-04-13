@@ -191,16 +191,16 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
                 desc_line = ' '.join(parts[2:])
-                # Peek at next line for continued description
-                if i + 1 < len(raw_lines):
-                    next_line = raw_lines[i + 1].strip()
-                    if not re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", next_line):
-                        desc_line += ' ' + next_line
-                        i += 1
-                i += 1
-                # Scan for amount line
-                while i < len(raw_lines) and not re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[i]):
-                    i += 1
+                full_desc = desc_line
+                j = i + 1
+                while j < len(raw_lines):
+                    next_line = raw_lines[j].strip()
+                    if re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", next_line):
+                        break
+                    elif next_line and not re.match(r"\d{1,2}\s+\w{3}", next_line):
+                        full_desc += ' ' + next_line
+                    j += 1
+                i = j
                 amt_line = raw_lines[i] if i < len(raw_lines) else ""
                 amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", amt_line)
                 if amt_match:
@@ -210,7 +210,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                     transactions.append({
                         "date": date_obj.strftime("%Y%m%d"),
                         "amount": amount,
-                        "desc": desc_line.strip(),
+                        "desc": full_desc.strip(),
                         "type": txn_type,
                         "id": date_obj.strftime("%Y%m%d") + str(i + 1)
                     })
