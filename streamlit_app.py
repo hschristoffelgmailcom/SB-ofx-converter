@@ -7,8 +7,49 @@ import io
 import re
 import fitz  # PyMuPDF for FNB
 
+# Set page config for a modern look
+st.set_page_config(page_title="Bank Statement to OFX Converter", layout="centered")
+
 # Detect bank-specific formatting
 current_bank = "Standard Bank"
+
+# Style adjustments
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .stButton>button {
+            background-color: #0072E3;
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+        }
+        .stDownloadButton>button {
+            background-color: #3BB273;
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+        }
+        .stCheckbox>label {
+            font-weight: 500;
+        }
+        .stSelectbox>div>div>div {
+            font-weight: 500;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("📄 Bank Statement to OFX Converter")
+
+bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
+current_bank = bank
+
+uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
+show_debug = st.checkbox("Show debug view")
 
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
@@ -68,7 +109,6 @@ NEWFILEUID:NONE
         </BANKACCTFROM>
         <BANKTRANLIST>
 """
-
     body = ""
     for idx, t in enumerate(transactions, start=1):
         body += f"""
@@ -80,7 +120,6 @@ NEWFILEUID:NONE
             <NAME>{t['desc']}</NAME>
           </STMTTRN>
 """
-
     footer = f"""
         </BANKTRANLIST>
         <LEDGERBAL>
@@ -94,7 +133,7 @@ NEWFILEUID:NONE
 """
     return header + body + footer
 
-def extract_transactions_from_lines(pdf_lines, show_debug):
+def extract_standardbank_transactions(pdf_lines, show_debug):
     transactions = []
     year = extract_year_from_lines(pdf_lines)
     skip_next = False
@@ -102,13 +141,11 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
         if skip_next:
             skip_next = False
             continue
-
         line = pdf_lines[i].strip()
         next_line = pdf_lines[i + 1].strip()
         parts = line.split()
         if len(parts) < 6:
             continue
-
         try:
             balance = parts[-1]
             date_str = f"{parts[-3]} {parts[-2]}"
@@ -148,16 +185,13 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     while i < len(raw_lines):
         line = raw_lines[i].strip()
         parts = line.split()
-
         if show_debug:
             st.code(f"FNB LINE: {line}")
-
         if len(parts) >= 2 and parts[0].isdigit() and parts[1][:3] in date_month_map:
             try:
                 day = parts[0].zfill(2)
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
-
                 desc_line = ' '.join(parts[2:])  # only keep the line with the date
                 amount = None
                 txn_type = ""
@@ -170,7 +204,6 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                         amount = format_amount(amt_text, txn_type)
                         break
                     j += 1
-
                 if amount is not None:
                     transactions.append({
                         "date": date_obj.strftime("%Y%m%d"),
@@ -186,24 +219,14 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             i += 1
     return transactions
 
-# --- Streamlit App ---
-st.title("Bank Statement to OFX Converter")
-
-bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
-current_bank = bank  # Set globally used bank variable
-
-uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
-show_debug = st.checkbox("Show debug view")
-
 if uploaded_file:
     file_type = uploaded_file.name.lower().split(".")[-1]
     file_name = uploaded_file.name.rsplit('.', 1)[0]
-
     if bank == "Standard Bank" and file_type == "pdf":
         with pdfplumber.open(uploaded_file) as pdf:
             lines = []
             if show_debug:
-                st.subheader("⚒️ Debug View – Extracted Lines and Parts")
+                st.subheader("🔧 Debug View – Extracted Lines and Parts")
             for page_num, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
                 if text:
@@ -214,7 +237,7 @@ if uploaded_file:
                         for line in page_lines:
                             st.code(f"LINE: {line}")
                             st.code(f"PARTS: {line.split()}")
-        txns = extract_transactions_from_lines(lines, show_debug)
+        txns = extract_standardbank_transactions(lines, show_debug)
 
     elif bank == "FNB" and file_type == "pdf":
         txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
