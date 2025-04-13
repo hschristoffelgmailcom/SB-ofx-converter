@@ -119,6 +119,39 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
             continue
     return transactions
 
+def extract_fnb_transactions(pdf_lines, show_debug):
+    transactions = []
+    date_regex = re.compile(r"(\d{2}/\d{2}/\d{4})")
+    year = extract_year_from_lines(pdf_lines)
+
+    for i, line in enumerate(pdf_lines):
+        parts = line.split()
+        if not parts:
+            continue
+        if show_debug:
+            st.code(f"LINE: {line}")
+            st.code(f"PARTS: {parts}")
+
+        try:
+            match = date_regex.match(parts[0])
+            if match and len(parts) >= 3:
+                date_str = match.group(1)
+                dt = datetime.strptime(date_str, "%d/%m/%Y")
+                amount_str = parts[-2]
+                balance_str = parts[-1]
+                desc = ' '.join(parts[1:-2])
+                transactions.append({
+                    "date": dt.strftime("%Y%m%d"),
+                    "amount": format_amount(amount_str),
+                    "desc": desc.strip(),
+                    "type": "DEBIT" if '-' in amount_str else "CREDIT",
+                    "id": dt.strftime("%Y%m%d") + str(i + 1)
+                })
+        except:
+            continue
+
+    return transactions
+
 # --- Streamlit App ---
 st.title("Bank Statement to OFX Converter")
 
@@ -147,8 +180,9 @@ if uploaded_file:
 
         if bank == "Standard Bank":
             txns = extract_transactions_from_lines(lines, show_debug)
+        elif bank == "FNB":
+            txns = extract_fnb_transactions(lines, show_debug)
         else:
-            st.error("FNB parsing is not yet implemented.")
             txns = []
 
         if txns:
