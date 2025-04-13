@@ -191,23 +191,26 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
                 desc_line = ' '.join(parts[2:])
-                j = i + 1
-                while j < len(raw_lines):
-                    amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[j])
-                    if amt_match:
-                        amt_text = amt_match.group(0)
-                        txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
-                        amount = format_amount(amt_text, txn_type)
-                        transactions.append({
-                            "date": date_obj.strftime("%Y%m%d"),
-                            "amount": amount,
-                            "desc": desc_line.strip(),
-                            "type": txn_type,
-                            "id": date_obj.strftime("%Y%m%d") + str(i + 1)
-                        })
-                        break
-                    j += 1
-                i = j + 1
+                i += 1
+                # Skip metadata lines instead of appending to description
+                while i < len(raw_lines) and not re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[i]):
+                    i += 1
+                amt_line = raw_lines[i] if i < len(raw_lines) else ""
+                amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", amt_line)
+                if amt_match:
+                    amt_text = amt_match.group(0)
+                    txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
+                    amount = format_amount(amt_text, txn_type)
+                    transactions.append({
+                        "date": date_obj.strftime("%Y%m%d"),
+                        "amount": amount,
+                        "desc": desc_line.strip(),
+                        "type": txn_type,
+                        "id": date_obj.strftime("%Y%m%d") + str(i + 1)
+                    })
+                    i += 1
+                else:
+                    i += 1
             except:
                 i += 1
         else:
