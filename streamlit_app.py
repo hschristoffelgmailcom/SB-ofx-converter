@@ -191,8 +191,14 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
                 desc_line = ' '.join(parts[2:])
+                # Peek at next line for continued description
+                if i + 1 < len(raw_lines):
+                    next_line = raw_lines[i + 1].strip()
+                    if not re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", next_line):
+                        desc_line += ' ' + next_line
+                        i += 1
                 i += 1
-                # Skip metadata lines instead of appending to description
+                # Scan for amount line
                 while i < len(raw_lines) and not re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[i]):
                     i += 1
                 amt_line = raw_lines[i] if i < len(raw_lines) else ""
