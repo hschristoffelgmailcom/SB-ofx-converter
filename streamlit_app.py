@@ -10,10 +10,7 @@ import fitz  # PyMuPDF for FNB
 # Set page config for a modern look
 st.set_page_config(page_title="Bank Statement to OFX Converter", layout="centered")
 
-# Detect bank-specific formatting
-current_bank = "Standard Bank"
-
-# Style adjustments
+# UI Styling
 st.markdown("""
     <style>
         .block-container {
@@ -34,23 +31,20 @@ st.markdown("""
             padding: 0.6rem 1.2rem;
             border-radius: 8px;
         }
-        .stCheckbox>label {
-            font-weight: 500;
-        }
-        .stSelectbox>div>div>div {
-            font-weight: 500;
-        }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📄 Bank Statement to OFX Converter")
 
+# Bank selection
 bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
 current_bank = bank
 
-uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
+# Upload
+uploaded_files = st.file_uploader("Upload one or more bank statements (PDF only)", type=["pdf"], accept_multiple_files=True)
 show_debug = st.checkbox("Show debug view")
 
+# Helper functions
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace(",", "").replace("Cr", "")
@@ -62,11 +56,10 @@ def format_amount(val, txn_type=None):
     return amount
 
 def extract_year_from_lines(lines):
-    date_pattern = re.compile(r"\b(\d{2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", re.IGNORECASE)
     for line in lines:
-        match = date_pattern.search(line)
+        match = re.search(r"\b\d{2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", line, re.IGNORECASE)
         if match:
-            return int(match.group(3))
+            return int(match.group(2))
     return 2024
 
 def convert_to_ofx(transactions, account_id="021386404", bank_id="STANDARD_BANK"):
@@ -176,11 +169,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc.close()
 
     transactions = []
-    date_month_map = {
-        "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
-        "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
-    }
-
+    date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
     i = 0
     while i < len(raw_lines):
         line = raw_lines[i].strip()
@@ -192,7 +181,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 day = parts[0].zfill(2)
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
-                desc_line = ' '.join(parts[2:])  # only keep the line with the date
+                desc_line = ' '.join(parts[2:])
                 amount = None
                 txn_type = ""
                 j = i + 1
@@ -219,53 +208,47 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             i += 1
     return transactions
 
-if uploaded_file:
-    file_type = uploaded_file.name.lower().split(".")[-1]
-    file_name = uploaded_file.name.rsplit('.', 1)[0]
-    if bank == "Standard Bank" and file_type == "pdf":
-        with pdfplumber.open(uploaded_file) as pdf:
-            lines = []
-            if show_debug:
-                st.subheader("🔧 Debug View – Extracted Lines and Parts")
-            for page_num, page in enumerate(pdf.pages, start=1):
-                text = page.extract_text()
-                if text:
-                    page_lines = text.splitlines()
-                    lines.extend(page_lines)
-                    if show_debug:
-                        st.markdown(f"**Page {page_num}:**")
-                        for line in page_lines:
-                            st.code(f"LINE: {line}")
-                            st.code(f"PARTS: {line.split()}")
-        txns = extract_standardbank_transactions(lines, show_debug)
+# Run conversion for each file
+all_txns = []
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        file_name = uploaded_file.name.rsplit('.', 1)[0]
+        if bank == "Standard Bank":
+            with pdfplumber.open(uploaded_file) as pdf:
+                lines = []
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        lines.extend(text.splitlines())
+                txns = extract_standardbank_transactions(lines, show_debug)
+        elif bank == "FNB":
+            txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
+        else:
+            txns = []
 
-    elif bank == "FNB" and file_type == "pdf":
-        txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
+        if txns:
+            all_txns.extend(txns)
+            ofx_data = convert_to_ofx(txns)
+            st.download_button(
+                label=f"Download {file_name}.ofx",
+                data=ofx_data,
+                file_name=f"{file_name}.ofx",
+                mime="application/xml"
+            )
 
-    else:
-        txns = []
-
-    if txns:
-        df = pd.DataFrame(txns)
+    if all_txns:
+        df = pd.DataFrame(all_txns)
         df.index = df.index + 1
-        st.success(f"Extracted {len(txns)} transactions.")
+        st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(df[["date", "type", "amount", "desc"]])
 
         total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
         total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
         difference = total_credits + total_debits
 
-        st.markdown("### 💰 Transaction Totals")
+        st.markdown("### 💰 Total Summary")
         st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
         st.write(f"**Total Credits:** R{total_credits:,.2f}")
-        st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
-
-        ofx_data = convert_to_ofx(txns)
-        st.download_button(
-            label="Download OFX File",
-            data=ofx_data,
-            file_name=f"{file_name}.ofx",
-            mime="application/xml"
-        )
+        st.write(f"**Difference:** R{difference:,.2f}")
     else:
-        st.error("No transactions found in the uploaded file.")
+        st.error("No transactions found in the uploaded file(s).")
