@@ -136,7 +136,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
 
     for i, line in enumerate(raw_lines):
         parts = line.split()
-        if len(parts) < 5 or parts[1] not in date_month_map:
+        if len(parts) < 6 or parts[1] not in date_month_map:
             continue
 
         try:
@@ -144,17 +144,14 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             month = date_month_map[parts[1]]
             desc_parts = []
             amount = None
-            balance = None
 
             for j in range(2, len(parts)):
-                if re.match(r"^\d{1,3}(,\d{3})*\.\d{2}Cr$", parts[j]) or re.match(r"^\d{1,3}(,\d{3})*\.\d{2}$", parts[j]):
+                if re.match(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", parts[j]):
                     amount = parts[j]
-                    balance = parts[j+1] if j+1 < len(parts) else ""
                     break
                 desc_parts.append(parts[j])
 
-            desc = ' '.join(desc_parts)
-            if not amount or not balance:
+            if not amount:
                 continue
 
             date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
@@ -164,13 +161,13 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             transactions.append({
                 "date": date_obj.strftime("%Y%m%d"),
                 "amount": clean_amount,
-                "desc": desc.strip(),
+                "desc": ' '.join(desc_parts).strip(),
                 "type": txn_type,
                 "id": date_obj.strftime("%Y%m%d") + str(i + 1)
             })
 
             if show_debug:
-                st.code(f"FNB TXN: {date_obj.strftime('%Y-%m-%d')} | {txn_type} | {clean_amount} | {desc}")
+                st.code(f"FNB TXN: {date_obj.strftime('%Y-%m-%d')} | {txn_type} | {clean_amount} | {' '.join(desc_parts)}")
 
         except Exception as e:
             if show_debug:
