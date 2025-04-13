@@ -40,9 +40,10 @@ st.title("📄 Bank Statement to OFX Converter")
 bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
 current_bank = bank
 
-# Upload
+# Upload and settings
 uploaded_files = st.file_uploader("Upload one or more bank statements (PDF only)", type=["pdf"], accept_multiple_files=True)
 show_debug = st.checkbox("Show debug view")
+combine_output = st.checkbox("Combine all into one OFX file")
 
 # Helper functions
 def format_amount(val, txn_type=None):
@@ -232,14 +233,15 @@ if uploaded_files:
             txns = []
 
         if txns:
+            if not combine_output:
+                ofx_data = convert_to_ofx(txns)
+                st.download_button(
+                    label=f"Download {file_name}.ofx",
+                    data=ofx_data,
+                    file_name=f"{file_name}.ofx",
+                    mime="application/xml"
+                )
             all_txns.extend(txns)
-            ofx_data = convert_to_ofx(txns)
-            st.download_button(
-                label=f"Download {file_name}.ofx",
-                data=ofx_data,
-                file_name=f"{file_name}.ofx",
-                mime="application/xml"
-            )
 
     if all_txns:
         df = pd.DataFrame(all_txns)
@@ -255,5 +257,14 @@ if uploaded_files:
         st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
         st.write(f"**Total Credits:** R{total_credits:,.2f}")
         st.write(f"**Difference:** R{difference:,.2f}")
+
+        if combine_output:
+            ofx_data = convert_to_ofx(all_txns)
+            st.download_button(
+                label="📥 Download Combined OFX",
+                data=ofx_data,
+                file_name="combined_output.ofx",
+                mime="application/xml"
+            )
     else:
         st.error("No transactions found in the uploaded file(s).")
