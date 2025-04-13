@@ -196,7 +196,8 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 day = parts[0].zfill(2)
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
-                full_desc = ' '.join(parts[2:]) or "UNKNOWN"
+                desc_line = ' '.join(parts[2:])
+                full_desc = desc_line.strip() if desc_line else "UNKNOWN"
                 j = i + 1
                 while j < len(raw_lines):
                     next_line = raw_lines[j].strip()
