@@ -119,9 +119,12 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
             continue
     return transactions
 
-st.title("Standard Bank PDF/DOCX to OFX Converter")
+# --- Streamlit App ---
+st.title("Bank Statement to OFX Converter")
 
-uploaded_file = st.file_uploader("Upload your Standard Bank statement (PDF or DOCX)", type=["pdf", "docx"])
+bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
+
+uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
 show_debug = st.checkbox("Show debug view")
 
 if uploaded_file:
@@ -142,13 +145,17 @@ if uploaded_file:
                             st.code(f"LINE: {line}")
                             st.code(f"PARTS: {line.split()}")
 
-        txns = extract_transactions_from_lines(lines, show_debug)
+        if bank == "Standard Bank":
+            txns = extract_transactions_from_lines(lines, show_debug)
+        else:
+            st.error("FNB parsing is not yet implemented.")
+            txns = []
 
         if txns:
             df = pd.DataFrame(txns)
             df.index = df.index + 1
             st.success(f"Extracted {len(txns)} transactions.")
-            st.dataframe(df[["date", "type", "amount", "desc"]])
+            st.dataframe(df["date", "type", "amount", "desc"])
 
             total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
             total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
@@ -163,7 +170,7 @@ if uploaded_file:
             st.download_button(
                 label="Download OFX File",
                 data=ofx_data,
-                file_name="standardbank_statement.ofx",
+                file_name="statement.ofx",
                 mime="application/xml"
             )
         else:
