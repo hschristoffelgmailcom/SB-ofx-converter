@@ -135,40 +135,43 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     }
 
     i = 0
-    while i < len(raw_lines) - 3:
+    while i < len(raw_lines):
         line = raw_lines[i].strip()
         parts = line.split()
 
         if show_debug:
             st.code(f"FNB LINE: {line}")
 
-        if len(parts) >= 2 and parts[0].isdigit() and parts[1] in date_month_map:
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1][:3] in date_month_map:
             try:
                 day = parts[0].zfill(2)
-                month = date_month_map[parts[1]]
+                month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
 
-                desc_line1 = ' '.join(parts[2:])
-                desc_line2 = raw_lines[i + 1].strip()
-                amount_line = raw_lines[i + 2].strip()
+                desc_line = ' '.join(parts[2:])
+                j = i + 1
+                amount = None
+                while j < len(raw_lines) and not amount:
+                    amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[j])
+                    if amt_match:
+                        amt_text = amt_match.group(0)
+                        txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
+                        amount = format_amount(amt_text)
+                        break
+                    else:
+                        desc_line += " " + raw_lines[j].strip()
+                    j += 1
 
-                amount = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", amount_line)
-                if not amount:
-                    i += 1
-                    continue
+                if amount is not None:
+                    transactions.append({
+                        "date": date_obj.strftime("%Y%m%d"),
+                        "amount": amount,
+                        "desc": desc_line.strip(),
+                        "type": txn_type,
+                        "id": date_obj.strftime("%Y%m%d") + str(i + 1)
+                    })
 
-                amt_text = amount.group(0)
-                txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
-                clean_amount = format_amount(amt_text)
-
-                transactions.append({
-                    "date": date_obj.strftime("%Y%m%d"),
-                    "amount": clean_amount,
-                    "desc": f"{desc_line1} {desc_line2}",
-                    "type": txn_type,
-                    "id": date_obj.strftime("%Y%m%d") + str(i + 1)
-                })
-                i += 4  # Skip to next transaction block
+                i = j + 1
             except:
                 i += 1
         else:
