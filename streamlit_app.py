@@ -190,7 +190,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 day = parts[0].zfill(2)
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
-                full_desc = ' '.join(parts[2:])
+                full_desc = ' '.join(parts[2:]) or "UNKNOWN"
                 j = i + 1
                 while j < len(raw_lines):
                     next_line = raw_lines[j].strip()
@@ -267,7 +267,7 @@ if uploaded_files:
         if combine_output:
             ofx_data = convert_to_ofx(all_txns)
             st.download_button(
-                label="📅 Download Combined OFX",
+                label="🗕️ Download Combined OFX",
                 data=ofx_data,
                 file_name="combined_output.ofx",
                 mime="application/xml"
