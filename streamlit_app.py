@@ -158,10 +158,10 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 month = date_month_map[parts[1][:3]]
                 date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
 
-                desc_line = ' '.join(parts[2:])
-                j = i + 1
+                desc_line = ' '.join(parts[2:])  # only keep the line with the date
                 amount = None
                 txn_type = ""
+                j = i + 1
                 while j < len(raw_lines) and not amount:
                     amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[j])
                     if amt_match:
@@ -169,8 +169,6 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                         txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
                         amount = format_amount(amt_text, txn_type)
                         break
-                    else:
-                        desc_line += " " + raw_lines[j].strip()
                     j += 1
 
                 if amount is not None:
@@ -181,7 +179,6 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                         "type": txn_type,
                         "id": date_obj.strftime("%Y%m%d") + str(i + 1)
                     })
-
                 i = j + 1
             except:
                 i += 1
@@ -206,7 +203,7 @@ if uploaded_file:
         with pdfplumber.open(uploaded_file) as pdf:
             lines = []
             if show_debug:
-                st.subheader("🛠 Debug View – Extracted Lines and Parts")
+                st.subheader("⚒️ Debug View – Extracted Lines and Parts")
             for page_num, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text()
                 if text:
