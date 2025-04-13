@@ -189,7 +189,7 @@ if uploaded_file:
             df = pd.DataFrame(txns)
             df.index = df.index + 1
             st.success(f"Extracted {len(txns)} transactions.")
-            st.dataframe(df["date", "type", "amount", "desc"])
+            st.dataframe(df[["date", "type", "amount", "desc"]])
 
             total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
             total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
