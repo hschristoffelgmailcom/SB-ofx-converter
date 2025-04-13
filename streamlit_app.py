@@ -84,27 +84,29 @@ NEWFILEUID:NONE
 """
     return header + body + footer
 
-def extract_transactions_from_docx(docx_file, show_debug):
+def extract_transactions_from_lines(pdf_lines, show_debug):
     transactions = []
-    doc = Document(io.BytesIO(docx_file.read()))
-    lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    year = extract_year_from_lines(lines)
-    if show_debug:
-        st.subheader("🛠 DOCX Debug Preview")
-    for i in range(len(lines)):
-        line = lines[i]
+    year = extract_year_from_lines(pdf_lines)
+    skip_next = False
+    for i in range(len(pdf_lines) - 1):
+        if skip_next:
+            skip_next = False
+            continue
+
+        line = pdf_lines[i].strip()
+        next_line = pdf_lines[i + 1].strip()
         parts = line.split()
-        if show_debug:
-            st.code(f"LINE: {line}")
-            st.code(f"PARTS: {parts}")
         if len(parts) < 6:
             continue
+
         try:
             balance = parts[-1]
             date_str = f"{parts[-3]} {parts[-2]}"
             dt = datetime.strptime(date_str, "%m %d").replace(year=year)
             amount = parts[-4]
-            desc = ' '.join(parts[:-5])
+            desc = ' '.join(parts[:-5]) + " " + next_line
+            if "BALANCE BROUGHT FORWARD" in desc.upper():
+                continue
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
                 "amount": format_amount(amount),
@@ -112,6 +114,7 @@ def extract_transactions_from_docx(docx_file, show_debug):
                 "type": "DEBIT" if '-' in amount else "CREDIT",
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
+            skip_next = True
         except:
             continue
     return transactions
@@ -123,9 +126,7 @@ show_debug = st.checkbox("Show debug view")
 
 if uploaded_file:
     file_type = uploaded_file.name.lower().split(".")[-1]
-    if file_type == "docx":
-        txns = extract_transactions_from_docx(uploaded_file, show_debug)
-    else:
+    if file_type == "pdf":
         with pdfplumber.open(uploaded_file) as pdf:
             lines = []
             if show_debug:
@@ -137,60 +138,33 @@ if uploaded_file:
                     lines.extend(page_lines)
                     if show_debug:
                         st.markdown(f"**Page {page_num}:**")
-                        for i, line in enumerate(page_lines):
+                        for line in page_lines:
                             st.code(f"LINE: {line}")
-                            parts = line.split()
-                            st.code(f"PARTS: {parts}")
+                            st.code(f"PARTS: {line.split()}")
 
-        @st.cache_data
-        def extract_transactions(pdf_lines):
-            transactions = []
-            year = extract_year_from_lines(pdf_lines)
-            for i in range(len(pdf_lines)):
-                line = pdf_lines[i].strip()
-                parts = line.split()
-                if len(parts) < 6:
-                    continue
-                try:
-                    balance = parts[-1]
-                    date_str = f"{parts[-3]} {parts[-2]}"
-                    dt = datetime.strptime(date_str, "%m %d").replace(year=year)
-                    amount = parts[-4]
-                    desc = ' '.join(parts[:-5])
-                    transactions.append({
-                        "date": dt.strftime("%Y%m%d"),
-                        "amount": format_amount(amount),
-                        "desc": desc.strip(),
-                        "type": "DEBIT" if '-' in amount else "CREDIT",
-                        "id": dt.strftime("%Y%m%d") + str(i + 1)
-                    })
-                except:
-                    continue
-            return transactions
+        txns = extract_transactions_from_lines(lines, show_debug)
 
-        txns = extract_transactions(lines)
+        if txns:
+            df = pd.DataFrame(txns)
+            df.index = df.index + 1
+            st.success(f"Extracted {len(txns)} transactions.")
+            st.dataframe(df[["date", "type", "amount", "desc"]])
 
-    if txns:
-        df = pd.DataFrame(txns)
-        df.index = df.index + 1
-        st.success(f"Extracted {len(txns)} transactions.")
-        st.dataframe(df[["date", "type", "amount", "desc"]])
+            total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
+            total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
+            difference = total_credits + total_debits
 
-        total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
-        total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
-        difference = total_credits + total_debits  # debits are negative
+            st.markdown("### 💰 Transaction Totals")
+            st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
+            st.write(f"**Total Credits:** R{total_credits:,.2f}")
+            st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
 
-        st.markdown("### 💰 Transaction Totals")
-        st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
-        st.write(f"**Total Credits:** R{total_credits:,.2f}")
-        st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
-
-        ofx_data = convert_to_ofx(txns)
-        st.download_button(
-            label="Download OFX File",
-            data=ofx_data,
-            file_name="standardbank_statement.ofx",
-            mime="application/xml"
-        )
-    else:
-        st.error("No transactions found in the uploaded file.")
+            ofx_data = convert_to_ofx(txns)
+            st.download_button(
+                label="Download OFX File",
+                data=ofx_data,
+                file_name="standardbank_statement.ofx",
+                mime="application/xml"
+            )
+        else:
+            st.error("No transactions found in the uploaded file.")
