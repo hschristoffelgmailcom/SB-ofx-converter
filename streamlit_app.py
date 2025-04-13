@@ -121,34 +121,47 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
 
 def extract_fnb_transactions(pdf_lines, show_debug):
     transactions = []
-    date_regex = re.compile(r"(\d{2}/\d{2}/\d{4})")
+    date_regex = re.compile(r"\d{2}/\d{2}/\d{4}")
+    amount_regex = re.compile(r"^-?[\d.,]+$")
     year = extract_year_from_lines(pdf_lines)
 
-    for i, line in enumerate(pdf_lines):
+    i = 0
+    while i < len(pdf_lines):
+        line = pdf_lines[i].strip()
         parts = line.split()
-        if not parts:
+        if not parts or not date_regex.match(parts[0]):
+            i += 1
             continue
-        if show_debug:
-            st.code(f"LINE: {line}")
-            st.code(f"PARTS: {parts}")
 
         try:
-            match = date_regex.match(parts[0])
-            if match and len(parts) >= 3:
-                date_str = match.group(1)
-                dt = datetime.strptime(date_str, "%d/%m/%Y")
-                amount_str = parts[-2]
-                balance_str = parts[-1]
-                desc = ' '.join(parts[1:-2])
-                transactions.append({
-                    "date": dt.strftime("%Y%m%d"),
-                    "amount": format_amount(amount_str),
-                    "desc": desc.strip(),
-                    "type": "DEBIT" if '-' in amount_str else "CREDIT",
-                    "id": dt.strftime("%Y%m%d") + str(i + 1)
-                })
-        except:
-            continue
+            date_str = parts[0]
+            dt = datetime.strptime(date_str, "%d/%m/%Y")
+            amount_str = parts[-2]
+            balance_str = parts[-1]
+            desc = ' '.join(parts[1:-2]).strip()
+
+            if i + 1 < len(pdf_lines):
+                next_line = pdf_lines[i + 1].strip()
+                next_parts = next_line.split()
+                if next_parts and not date_regex.match(next_parts[0]) and not amount_regex.match(next_parts[-1]):
+                    desc += " " + next_line
+                    i += 1
+
+            transactions.append({
+                "date": dt.strftime("%Y%m%d"),
+                "amount": format_amount(amount_str),
+                "desc": desc.strip(),
+                "type": "DEBIT" if '-' in amount_str else "CREDIT",
+                "id": dt.strftime("%Y%m%d") + str(i + 1)
+            })
+
+            if show_debug:
+                st.code(f"FNB TXN: {dt.strftime('%Y-%m-%d')} | {amount_str} | {desc}")
+
+        except Exception as e:
+            if show_debug:
+                st.warning(f"Skipped line {i}: {line} → Error: {e}")
+        i += 1
 
     return transactions
 
