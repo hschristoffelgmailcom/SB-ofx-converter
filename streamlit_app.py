@@ -10,17 +10,15 @@ import fitz  # PyMuPDF for FNB
 # Detect bank-specific formatting
 current_bank = "Standard Bank"
 
-def format_amount(val, txn_type_hint=None):
+def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace(",", "").replace("Cr", "")
-        amt = float(val.strip())
-        if txn_type_hint == "DEBIT":
-            return -abs(amt)
-        else:
-            return amt
     else:
         val = val.replace('.', '').replace(',', '.').replace('Cr', '')
-        return float(val.strip('-')) * (-1 if '-' in val else 1)
+    amount = float(val.strip('-'))
+    if txn_type == "DEBIT" or ('-' in val and txn_type is None):
+        amount *= -1
+    return amount
 
 def extract_year_from_lines(lines):
     date_pattern = re.compile(r"\b(\d{2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", re.IGNORECASE)
@@ -119,11 +117,12 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
             desc = ' '.join(parts[:-5]) + " " + next_line
             if "BALANCE BROUGHT FORWARD" in desc.upper():
                 continue
+            txn_type = "DEBIT" if '-' in amount else "CREDIT"
             transactions.append({
                 "date": dt.strftime("%Y%m%d"),
-                "amount": format_amount(amount),
+                "amount": format_amount(amount, txn_type),
                 "desc": desc.strip(),
-                "type": "DEBIT" if '-' in amount else "CREDIT",
+                "type": txn_type,
                 "id": dt.strftime("%Y%m%d") + str(i + 1)
             })
             skip_next = True
@@ -162,13 +161,13 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 desc_line = ' '.join(parts[2:])
                 j = i + 1
                 amount = None
-                txn_type = "DEBIT"
+                txn_type = ""
                 while j < len(raw_lines) and not amount:
                     amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", raw_lines[j])
                     if amt_match:
                         amt_text = amt_match.group(0)
                         txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
-                        amount = format_amount(amt_text, txn_type_hint=txn_type)
+                        amount = format_amount(amt_text, txn_type)
                         break
                     else:
                         desc_line += " " + raw_lines[j].strip()
@@ -199,9 +198,10 @@ current_bank = bank  # Set globally used bank variable
 uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
 show_debug = st.checkbox("Show debug view")
 
-txns = []
 if uploaded_file:
     file_type = uploaded_file.name.lower().split(".")[-1]
+    file_name = uploaded_file.name.rsplit('.', 1)[0]
+
     if bank == "Standard Bank" and file_type == "pdf":
         with pdfplumber.open(uploaded_file) as pdf:
             lines = []
@@ -222,6 +222,9 @@ if uploaded_file:
     elif bank == "FNB" and file_type == "pdf":
         txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
 
+    else:
+        txns = []
+
     if txns:
         df = pd.DataFrame(txns)
         df.index = df.index + 1
@@ -241,7 +244,7 @@ if uploaded_file:
         st.download_button(
             label="Download OFX File",
             data=ofx_data,
-            file_name="statement.ofx",
+            file_name=f"{file_name}.ofx",
             mime="application/xml"
         )
     else:
