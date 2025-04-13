@@ -5,9 +5,10 @@ import pandas as pd
 from docx import Document
 import io
 import re
+import fitz  # PyMuPDF for FNB
 
 def format_amount(val):
-    val = val.replace('.', '').replace(',', '.')
+    val = val.replace('.', '').replace(',', '.').replace('Cr', '')
     return float(val.strip('-')) * (-1 if '-' in val else 1)
 
 def extract_year_from_lines(lines):
@@ -119,49 +120,61 @@ def extract_transactions_from_lines(pdf_lines, show_debug):
             continue
     return transactions
 
-def extract_fnb_transactions(pdf_lines, show_debug):
-    transactions = []
-    date_regex = re.compile(r"\d{2}/\d{2}/\d{4}")
-    amount_regex = re.compile(r"^-?[\d.,]+$")
-    year = extract_year_from_lines(pdf_lines)
+def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    raw_lines = []
+    for page in doc:
+        text = page.get_text()
+        raw_lines.extend(text.splitlines())
+    doc.close()
 
-    i = 0
-    while i < len(pdf_lines):
-        line = pdf_lines[i].strip()
+    transactions = []
+    date_month_map = {
+        "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+        "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+    }
+
+    for i, line in enumerate(raw_lines):
         parts = line.split()
-        if not parts or not date_regex.match(parts[0]):
-            i += 1
+        if len(parts) < 5 or parts[1] not in date_month_map:
             continue
 
         try:
-            date_str = parts[0]
-            dt = datetime.strptime(date_str, "%d/%m/%Y")
-            amount_str = parts[-2]
-            balance_str = parts[-1]
-            desc = ' '.join(parts[1:-2]).strip()
+            day = parts[0].zfill(2)
+            month = date_month_map[parts[1]]
+            desc_parts = []
+            amount = None
+            balance = None
 
-            if i + 1 < len(pdf_lines):
-                next_line = pdf_lines[i + 1].strip()
-                next_parts = next_line.split()
-                if next_parts and not date_regex.match(next_parts[0]) and not amount_regex.match(next_parts[-1]):
-                    desc += " " + next_line
-                    i += 1
+            for j in range(2, len(parts)):
+                if re.match(r"^\d{1,3}(,\d{3})*\.\d{2}Cr$", parts[j]) or re.match(r"^\d{1,3}(,\d{3})*\.\d{2}$", parts[j]):
+                    amount = parts[j]
+                    balance = parts[j+1] if j+1 < len(parts) else ""
+                    break
+                desc_parts.append(parts[j])
+
+            desc = ' '.join(desc_parts)
+            if not amount or not balance:
+                continue
+
+            date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
+            txn_type = "CREDIT" if "Cr" in amount else "DEBIT"
+            clean_amount = format_amount(amount.replace("Cr", ""))
 
             transactions.append({
-                "date": dt.strftime("%Y%m%d"),
-                "amount": format_amount(amount_str),
+                "date": date_obj.strftime("%Y%m%d"),
+                "amount": clean_amount,
                 "desc": desc.strip(),
-                "type": "DEBIT" if '-' in amount_str else "CREDIT",
-                "id": dt.strftime("%Y%m%d") + str(i + 1)
+                "type": txn_type,
+                "id": date_obj.strftime("%Y%m%d") + str(i + 1)
             })
 
             if show_debug:
-                st.code(f"FNB TXN: {dt.strftime('%Y-%m-%d')} | {amount_str} | {desc}")
+                st.code(f"FNB TXN: {date_obj.strftime('%Y-%m-%d')} | {txn_type} | {clean_amount} | {desc}")
 
         except Exception as e:
             if show_debug:
-                st.warning(f"Skipped line {i}: {line} → Error: {e}")
-        i += 1
+                st.warning(f"Line skipped: {line} -> {e}")
 
     return transactions
 
@@ -175,7 +188,7 @@ show_debug = st.checkbox("Show debug view")
 
 if uploaded_file:
     file_type = uploaded_file.name.lower().split(".")[-1]
-    if file_type == "pdf":
+    if bank == "Standard Bank" and file_type == "pdf":
         with pdfplumber.open(uploaded_file) as pdf:
             lines = []
             if show_debug:
@@ -190,35 +203,35 @@ if uploaded_file:
                         for line in page_lines:
                             st.code(f"LINE: {line}")
                             st.code(f"PARTS: {line.split()}")
+        txns = extract_transactions_from_lines(lines, show_debug)
 
-        if bank == "Standard Bank":
-            txns = extract_transactions_from_lines(lines, show_debug)
-        elif bank == "FNB":
-            txns = extract_fnb_transactions(lines, show_debug)
-        else:
-            txns = []
+    elif bank == "FNB" and file_type == "pdf":
+        txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
 
-        if txns:
-            df = pd.DataFrame(txns)
-            df.index = df.index + 1
-            st.success(f"Extracted {len(txns)} transactions.")
-            st.dataframe(df[["date", "type", "amount", "desc"]])
+    else:
+        txns = []
 
-            total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
-            total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
-            difference = total_credits + total_debits
+    if txns:
+        df = pd.DataFrame(txns)
+        df.index = df.index + 1
+        st.success(f"Extracted {len(txns)} transactions.")
+        st.dataframe(df[["date", "type", "amount", "desc"]])
 
-            st.markdown("### 💰 Transaction Totals")
-            st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
-            st.write(f"**Total Credits:** R{total_credits:,.2f}")
-            st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
+        total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
+        total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
+        difference = total_credits + total_debits
 
-            ofx_data = convert_to_ofx(txns)
-            st.download_button(
-                label="Download OFX File",
-                data=ofx_data,
-                file_name="statement.ofx",
-                mime="application/xml"
-            )
-        else:
-            st.error("No transactions found in the uploaded file.")
+        st.markdown("### 💰 Transaction Totals")
+        st.write(f"**Total Debits:** R{abs(total_debits):,.2f}")
+        st.write(f"**Total Credits:** R{total_credits:,.2f}")
+        st.write(f"**Difference (Credits - Debits):** R{difference:,.2f}")
+
+        ofx_data = convert_to_ofx(txns)
+        st.download_button(
+            label="Download OFX File",
+            data=ofx_data,
+            file_name="statement.ofx",
+            mime="application/xml"
+        )
+    else:
+        st.error("No transactions found in the uploaded file.")
