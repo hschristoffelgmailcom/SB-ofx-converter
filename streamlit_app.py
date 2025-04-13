@@ -7,8 +7,14 @@ import io
 import re
 import fitz  # PyMuPDF for FNB
 
+# Detect bank-specific formatting
+current_bank = "Standard Bank"
+
 def format_amount(val):
-    val = val.replace('.', '').replace(',', '.').replace('Cr', '')
+    if current_bank == "FNB":
+        val = val.replace(",", "").replace("Cr", "")
+    else:
+        val = val.replace('.', '').replace(',', '.').replace('Cr', '')
     return float(val.strip('-')) * (-1 if '-' in val else 1)
 
 def extract_year_from_lines(lines):
@@ -182,6 +188,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
 st.title("Bank Statement to OFX Converter")
 
 bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
+current_bank = bank  # Set globally used bank variable
 
 uploaded_file = st.file_uploader("Upload your bank statement (PDF or DOCX)", type=["pdf", "docx"])
 show_debug = st.checkbox("Show debug view")
