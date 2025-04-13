@@ -136,42 +136,43 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
 
     for i, line in enumerate(raw_lines):
         parts = line.split()
-        if len(parts) < 6 or parts[1] not in date_month_map:
-            continue
+        if show_debug:
+            st.code(f"FNB LINE: {line}")
 
-        try:
-            day = parts[0].zfill(2)
-            month = date_month_map[parts[1]]
-            desc_parts = []
-            amount = None
+        if len(parts) >= 3 and parts[0].isdigit() and parts[1] in date_month_map:
+            try:
+                day = parts[0].zfill(2)
+                month = date_month_map[parts[1]]
+                desc_parts = []
+                amount = None
 
-            for j in range(2, len(parts)):
-                if re.match(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", parts[j]):
-                    amount = parts[j]
-                    break
-                desc_parts.append(parts[j])
+                for j in range(2, len(parts)):
+                    if re.match(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", parts[j]):
+                        amount = parts[j]
+                        break
+                    desc_parts.append(parts[j])
 
-            if not amount:
-                continue
+                if not amount:
+                    continue
 
-            date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
-            txn_type = "CREDIT" if "Cr" in amount else "DEBIT"
-            clean_amount = format_amount(amount.replace("Cr", ""))
+                date_obj = datetime.strptime(f"2024{month}{day}", "%Y%m%d")
+                txn_type = "CREDIT" if "Cr" in amount else "DEBIT"
+                clean_amount = format_amount(amount.replace("Cr", ""))
 
-            transactions.append({
-                "date": date_obj.strftime("%Y%m%d"),
-                "amount": clean_amount,
-                "desc": ' '.join(desc_parts).strip(),
-                "type": txn_type,
-                "id": date_obj.strftime("%Y%m%d") + str(i + 1)
-            })
+                transactions.append({
+                    "date": date_obj.strftime("%Y%m%d"),
+                    "amount": clean_amount,
+                    "desc": ' '.join(desc_parts).strip(),
+                    "type": txn_type,
+                    "id": date_obj.strftime("%Y%m%d") + str(i + 1)
+                })
 
-            if show_debug:
-                st.code(f"FNB TXN: {date_obj.strftime('%Y-%m-%d')} | {txn_type} | {clean_amount} | {' '.join(desc_parts)}")
+                if show_debug:
+                    st.code(f"→ TXN: {txn_type} | {date_obj.strftime('%Y-%m-%d')} | {clean_amount:.2f} | {' '.join(desc_parts)}")
 
-        except Exception as e:
-            if show_debug:
-                st.warning(f"Line skipped: {line} -> {e}")
+            except Exception as e:
+                if show_debug:
+                    st.warning(f"Line skipped: {line} → {e}")
 
     return transactions
 
