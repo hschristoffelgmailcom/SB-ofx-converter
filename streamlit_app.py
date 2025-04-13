@@ -175,12 +175,11 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     raw_lines = []
     for page in doc:
         text = page.get_text()
-        ocr_lines = []
         if not text.strip():
             pix = page.get_pixmap()
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            ocr_lines = pytesseract.image_to_string(img).splitlines()
-        raw_lines.extend(text.splitlines() + ocr_lines)
+            text = pytesseract.image_to_string(img)
+        raw_lines.extend(text.splitlines())
     doc.close()
 
     year = extract_fnb_year(raw_lines)
