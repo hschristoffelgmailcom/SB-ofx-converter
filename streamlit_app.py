@@ -60,6 +60,10 @@ def format_amount(val, txn_type=None):
 
 def extract_year_from_lines(lines):
     for line in lines:
+        match = re.search(r"Statement Date\s*:\s*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})", line, re.IGNORECASE)
+        if match:
+            return int(match.group(3))
+    for line in lines:
         match = re.search(r"\b\d{2}\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b", line, re.IGNORECASE)
         if match:
             return int(match.group(2))
@@ -284,7 +288,7 @@ if uploaded_files:
         if combine_output:
             ofx_data = convert_to_ofx(all_txns)
             st.download_button(
-                label="🗕️ Download Combined OFX",
+                label="🗅️ Download Combined OFX",
                 data=ofx_data,
                 file_name="combined_output.ofx",
                 mime="application/xml"
