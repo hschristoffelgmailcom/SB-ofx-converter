@@ -229,7 +229,7 @@ NEWFILEUID:NONE
       </STMTRS>
     </STMTTRNRS>
   </BANKMSGSRSV1>
-</OFX>"
+</OFX>"""
     return header + body + footer
 
 # File processing and editable table
