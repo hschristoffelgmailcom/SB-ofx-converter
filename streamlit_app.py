@@ -270,13 +270,14 @@ if uploaded_files:
         st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
         edited_df = st.data_editor(
             df[["select", "date_editable", "type", "amount", "desc"]],
-        batch_date = st.date_input("📆 Date to apply to selected transactions")
-        if st.button("Apply selected date to checked transactions"):
-            for i, row in edited_df.iterrows():
-                if row["select"]:
-                    all_txns[i]["date"] = batch_date.strftime("%Y%m%d")
-            st.success("Updated selected transactions to new date.")
+            column_config={"date_editable": "Transaction Date"},
+            num_rows="dynamic",
+            key="editor"
+        )
 
+        for i, row in edited_df.iterrows():
+            if row["select"]:
+                all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
