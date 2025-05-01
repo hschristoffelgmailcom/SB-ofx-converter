@@ -272,7 +272,8 @@ if uploaded_files:
             df[["select", "date_editable", "type", "amount", "desc"]],
             num_rows="dynamic",
             use_container_width=True
-        )
+        ,
+            hide_index=True)
 
         batch_date = st.date_input("🗖️ Date to apply to selected transactions")
         if st.button("Apply selected year to checked transactions"):
