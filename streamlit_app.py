@@ -267,6 +267,21 @@ if uploaded_files:
 
     if all_txns:
         df = pd.DataFrame(all_txns)
+        # Optional: Allow editable transaction dates (including year)
+df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
+
+st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
+edited_df = st.data_editor(
+    df[["date_editable", "type", "amount", "desc"]],
+    column_config={"date_editable": "Transaction Date"},
+    num_rows="dynamic",
+    key="editor"
+)
+
+# Apply any manual date edits to transactions before export
+for i, row in edited_df.iterrows():
+    all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
+    
         df.index = df.index + 1
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(df[["date", "type", "amount", "desc"]])
