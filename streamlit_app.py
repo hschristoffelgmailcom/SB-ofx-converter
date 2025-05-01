@@ -279,9 +279,10 @@ if uploaded_files:
             selected_year = batch_date.year
             for idx, row in edited_df.iterrows():
                 if row['select']:
-                    old_date = datetime.strptime(all_txns[idx]["date"], "%Y%m%d")
+                    txn_index = row.name - 1
+                    old_date = datetime.strptime(all_txns[txn_index]["date"], "%Y%m%d")
                     new_date = old_date.replace(year=selected_year)
-                    all_txns[idx]["date"] = new_date.strftime("%Y%m%d")
+                    all_txns[txn_index]["date"] = new_date.strftime("%Y%m%d")
             st.success("Updated year of selected transactions.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
