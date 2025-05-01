@@ -8,8 +8,10 @@ import fitz
 import pytesseract
 from PIL import Image
 
+# Set page config
 st.set_page_config(page_title="Bank Statement to OFX Converter", layout="centered")
 
+# UI Styling
 st.markdown("""
     <style>
         .block-container {
@@ -213,16 +215,14 @@ NEWFILEUID:NONE
         <BANKTRANLIST>"""
     body = ""
     for idx, t in enumerate(transactions, start=1):
-        body += f"""
-          <STMTTRN>
+        body += f"""<STMTTRN>
             <TRNTYPE>{t['type']}</TRNTYPE>
             <DTPOSTED>{t['date']}</DTPOSTED>
             <TRNAMT>{t['amount']}</TRNAMT>
             <FITID>{t['id']}</FITID>
             <NAME>{t['desc']}</NAME>
-          </STMTTRN>"""
-    footer = f"""
-        </BANKTRANLIST>
+        </STMTTRN>"""
+    footer = f"""</BANKTRANLIST>
         <LEDGERBAL>
           <BALAMT>0.00</BALAMT>
           <DTASOF>{now}</DTASOF>
@@ -233,6 +233,7 @@ NEWFILEUID:NONE
 </OFX>"""
     return header + body + footer
 
+# Process files
 all_txns = []
 if uploaded_files:
     for uploaded_file in uploaded_files:
@@ -267,9 +268,20 @@ if uploaded_files:
             num_rows="dynamic",
             key="editor"
         )
+        for i, (idx, row) in enumerate(edited_df.iterrows()):
+            if i < len(all_txns):
+                all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
 
-        for i, row in edited_df.iterrows():
-            all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
+        # Batch year update tool
+        st.markdown("### 🔁 Batch Update Year of Selected Transactions")
+        keyword = st.text_input("Filter transactions containing this keyword in the description")
+        new_year = st.number_input("Change year to:", min_value=2000, max_value=2100, step=1, format="%d", key="batch_year")
+        if st.button("Apply Year Change"):
+            for txn in all_txns:
+                if keyword.lower() in txn["desc"].lower():
+                    dt = datetime.strptime(txn["date"], "%Y%m%d")
+                    txn["date"] = dt.replace(year=new_year).strftime("%Y%m%d")
+            st.success(f"Updated year to {new_year} for all transactions containing '{keyword}'")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
