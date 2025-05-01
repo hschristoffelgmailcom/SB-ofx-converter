@@ -277,8 +277,8 @@ if uploaded_files:
         batch_date = st.date_input("🗖️ Date to apply to selected transactions")
         if st.button("Apply selected year to checked transactions"):
             selected_year = batch_date.year
-            for idx in range(len(edited_df)):
-                if edited_df.loc[idx, "select"]:
+            for idx, row in edited_df.iterrows():
+                if row['select']:
                     old_date = datetime.strptime(all_txns[idx]["date"], "%Y%m%d")
                     new_date = old_date.replace(year=selected_year)
                     all_txns[idx]["date"] = new_date.strftime("%Y%m%d")
