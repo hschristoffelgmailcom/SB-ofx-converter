@@ -281,13 +281,10 @@ if uploaded_files:
             for idx, row in edited_df.iterrows():
                 if row['select']:
                     txn_index = row.name - 1
-                    old_date = df.at[txn_index + 1, "date"]
+                    old_date = datetime.strptime(all_txns[txn_index]["date"], "%Y%m%d")
                     new_date = old_date.replace(year=selected_year)
                     df.at[txn_index + 1, "date"] = new_date
-                    all_txns[txn_index]["date"] = new_date.strftime("%Y%m%d")
-            df["select"] = False
             st.success("Updated year of selected transactions.")
-            st.experimental_rerun()
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         
