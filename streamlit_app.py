@@ -43,6 +43,7 @@ combine_output = st.checkbox("Combine all into one OFX file")
 manual_year = st.number_input("Manually override year for all transactions (optional)", min_value=0, max_value=2100, step=1, format="%d")
 if manual_year > 0:
     st.session_state.manual_year_override = manual_year
+
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace("Cr", "").replace(",", "")
@@ -104,6 +105,7 @@ def extract_standardbank_transactions(pdf_lines, show_debug):
         except:
             continue
     return transactions
+
 def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     raw_lines = []
@@ -172,7 +174,65 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             i += 1
     return transactions
 
-# Main logic
+def convert_to_ofx(transactions, account_id="021386404", bank_id="STANDARD_BANK"):
+    now = datetime.now().strftime("%Y%m%d%H%M%S")
+    header = f"""OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <DTSERVER>{now}</DTSERVER>
+      <LANGUAGE>ENG</LANGUAGE>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <STMTRS>
+        <CURDEF>ZAR</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>{bank_id}</BANKID>
+          <ACCTID>{account_id}</ACCTID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>"""
+    body = ""
+    for idx, t in enumerate(transactions, start=1):
+        body += f"""<STMTTRN>
+            <TRNTYPE>{t['type']}</TRNTYPE>
+            <DTPOSTED>{t['date']}</DTPOSTED>
+            <TRNAMT>{t['amount']}</TRNAMT>
+            <FITID>{t['id']}</FITID>
+            <NAME>{t['desc']}</NAME>
+        </STMTTRN>"""
+    footer = f"""</BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>0.00</BALAMT>
+          <DTASOF>{now}</DTASOF>
+        </LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>"""
+    return header + body + footer
+
+# File processing and editable table
 all_txns = []
 if uploaded_files:
     for uploaded_file in uploaded_files:
@@ -205,7 +265,7 @@ if uploaded_files:
         df = pd.DataFrame(all_txns)
         df.index = df.index + 1
         df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
-        df["select"] = False  # Add checkbox column
+        df["select"] = False
 
         st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
         edited_df = st.data_editor(
@@ -215,17 +275,9 @@ if uploaded_files:
             key="editor"
         )
 
-        for i, (idx, row) in enumerate(edited_df.iterrows()):
-            if i < len(all_txns):
+        for i, row in edited_df.iterrows():
+            if row["select"]:
                 all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
-
-        st.markdown("### 🗓 Batch Apply Date to Selected Transactions")
-        batch_date = st.date_input("Select new date to apply")
-        if st.button("Apply Date to Selected"):
-            for i, row in edited_df.iterrows():
-                if row["select"]:
-                    all_txns[i]["date"] = batch_date.strftime("%Y%m%d")
-            st.success("Updated selected transactions to new date.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
