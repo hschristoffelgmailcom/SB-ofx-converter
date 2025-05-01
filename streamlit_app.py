@@ -138,11 +138,7 @@ NEWFILEUID:NONE
 
 def extract_standardbank_transactions(pdf_lines, show_debug):
     transactions = []
-# Extract year from "Statement Date" line BEFORE any transaction parsing
-year = extract_fnb_year(raw_lines)
-if show_debug:
-    st.info(f"Detected year from FNB statement header: {year}")
-
+    year = extract_year_from_lines(pdf_lines)
     skip_next = False
     for i in range(len(pdf_lines) - 1):
         if skip_next:
