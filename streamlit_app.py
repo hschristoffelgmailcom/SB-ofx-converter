@@ -198,6 +198,16 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
                 desc_line = ' '.join(parts[2:])
                 full_desc = desc_line.strip() if desc_line else "UNKNOWN"
+
+                # Scan next few lines for better description if unknown
+                if full_desc == "UNKNOWN":
+                    for offset in range(1, 3):
+                        if i + offset < len(raw_lines):
+                            possible_desc = raw_lines[i + offset].strip()
+                            if possible_desc and not re.search(r"\d{2} \w{3}", possible_desc):
+                                full_desc = possible_desc
+                                break
+
                 j = i + 1
                 while j < len(raw_lines):
                     next_line = raw_lines[j].strip()
