@@ -183,7 +183,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc.close()
 
     if show_debug:
-        st.text(.join(raw_lines))
+st.text("\n".join(raw_lines))
 
     # Extract year from "Statement Date" line BEFORE any transaction parsing
     year = extract_fnb_year(raw_lines)
