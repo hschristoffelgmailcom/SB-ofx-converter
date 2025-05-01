@@ -275,11 +275,14 @@ if uploaded_files:
         )
 
         batch_date = st.date_input("🗖️ Date to apply to selected transactions")
-        if st.button("Apply selected date to checked transactions"):
+        if st.button("Apply selected year to checked transactions"):
+            selected_year = batch_date.year
             for idx in range(len(edited_df)):
                 if edited_df.loc[idx, "select"]:
-                    all_txns[idx]["date"] = batch_date.strftime("%Y%m%d")
-            st.success("Updated selected transactions to new date.")
+                    old_date = datetime.strptime(all_txns[idx]["date"], "%Y%m%d")
+                    new_date = old_date.replace(year=selected_year)
+                    all_txns[idx]["date"] = new_date.strftime("%Y%m%d")
+            st.success("Updated year of selected transactions.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
