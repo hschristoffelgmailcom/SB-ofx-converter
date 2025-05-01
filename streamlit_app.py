@@ -186,6 +186,10 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
         raw_lines.extend(text.splitlines())
     doc.close()
 
+    if show_debug:
+        st.text("
+".join(raw_lines))
+
     year = extract_fnb_year(raw_lines)
     transactions = []
     date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
