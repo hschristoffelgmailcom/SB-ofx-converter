@@ -229,7 +229,7 @@ NEWFILEUID:NONE
       </STMTRS>
     </STMTTRNRS>
   </BANKMSGSRSV1>
-</OFX>"""
+</OFX>"
     return header + body + footer
 
 # File processing and editable table
@@ -270,14 +270,16 @@ if uploaded_files:
         st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
         edited_df = st.data_editor(
             df[["select", "date_editable", "type", "amount", "desc"]],
-            column_config={"date_editable": "Transaction Date"},
             num_rows="dynamic",
-            key="editor"
+            use_container_width=True
         )
 
-        for i, row in edited_df.iterrows():
-            if row["select"]:
-                all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
+        batch_date = st.date_input("🗖️ Date to apply to selected transactions")
+        if st.button("Apply selected date to checked transactions"):
+            for idx in range(len(edited_df)):
+                if edited_df.loc[idx, "select"]:
+                    all_txns[idx]["date"] = batch_date.strftime("%Y%m%d")
+            st.success("Updated selected transactions to new date.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
