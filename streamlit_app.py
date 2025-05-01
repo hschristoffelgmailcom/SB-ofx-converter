@@ -44,6 +44,13 @@ uploaded_files = st.file_uploader("Upload one or more bank statements (PDF only)
 show_debug = st.checkbox("Show debug view")
 combine_output = st.checkbox("Combine all into one OFX file")
 
+# Year override input field
+manual_year = st.number_input("Manually override year for all transactions (optional)", min_value=0, max_value=2100, step=1, format="%d")
+
+# Store manual year in session for access in other functions
+if manual_year > 0:
+    st.session_state.manual_year_override = manual_year
+
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace("Cr", "").replace(",", "")
@@ -55,6 +62,8 @@ def format_amount(val, txn_type=None):
     return amount
 
 def extract_year_from_lines(lines):
+    if st.session_state.get("manual_year_override", 0) > 0:
+        return st.session_state.manual_year_override
     for line in lines:
         match = re.search(r"Statement Date\s*:\s*(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})", line, re.IGNORECASE)
         if match:
@@ -66,6 +75,8 @@ def extract_year_from_lines(lines):
     return 2024
 
 def extract_fnb_year(lines):
+    if st.session_state.get("manual_year_override", 0) > 0:
+        return st.session_state.manual_year_override
     for line in lines:
         match = re.search(r"Statement Date\s*:\s*(\d{1,2})\s+\w+\s+(\d{4})", line)
         if match:
@@ -136,6 +147,18 @@ NEWFILEUID:NONE
 """
     return header + body + footer
 
+# --- Process uploaded files and show results ---
+all_txns = []
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        file_name = uploaded_file.name.rsplit('.', 1)[0]
+        if bank == "Standard Bank":
+            with pdfplumber.open(uploaded_file) as pdf:
+                lines = []
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        lines.extend(text.splitlines())
 def extract_standardbank_transactions(pdf_lines, show_debug):
     transactions = []
     year = extract_year_from_lines(pdf_lines)
@@ -187,7 +210,8 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
 
     year = extract_fnb_year(raw_lines)
     transactions = []
-    date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+    date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+                      "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
     i = 0
     while i < len(raw_lines):
         line = raw_lines[i].strip()
@@ -237,19 +261,110 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             i += 1
     return transactions
 
-all_txns = []
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        file_name = uploaded_file.name.rsplit('.', 1)[0]
-        if bank == "Standard Bank":
-            with pdfplumber.open(uploaded_file) as pdf:
-                lines = []
-                for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        lines.extend(text.splitlines())
-                txns = extract_standardbank_transactions(lines, show_debug)
+def extract_standardbank_transactions(pdf_lines, show_debug):
+    transactions = []
+    year = extract_year_from_lines(pdf_lines)
+    skip_next = False
+    for i in range(len(pdf_lines) - 1):
+        if skip_next:
+            skip_next = False
+            continue
+        line = pdf_lines[i].strip()
+        next_line = pdf_lines[i + 1].strip()
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        try:
+            balance = parts[-1]
+            date_str = f"{parts[-3]} {parts[-2]}"
+            dt = datetime.strptime(date_str, "%m %d").replace(year=year)
+            amount = parts[-4]
+            desc = ' '.join(parts[:-5]) + " " + next_line
+            if "BALANCE BROUGHT FORWARD" in desc.upper():
+                continue
+            txn_type = "DEBIT" if '-' in amount else "CREDIT"
+            transactions.append({
+                "date": dt.strftime("%Y%m%d"),
+                "amount": format_amount(amount, txn_type),
+                "desc": desc.strip(),
+                "type": txn_type,
+                "id": dt.strftime("%Y%m%d") + str(i + 1)
+            })
+            skip_next = True
+        except:
+            continue
+    return transactions
+
+def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    raw_lines = []
+    for page in doc:
+        text = page.get_text()
+        if not text.strip() or len(text.strip()) < 200:
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            text = pytesseract.image_to_string(img)
+        raw_lines.extend(text.splitlines())
+    doc.close()
+
+    if show_debug:
+        st.text("\n".join(raw_lines))
+
+    year = extract_fnb_year(raw_lines)
+    transactions = []
+    date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+                      "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+    i = 0
+    while i < len(raw_lines):
+        line = raw_lines[i].strip()
+        parts = line.split()
+        if show_debug:
+            st.code(f"FNB LINE: {line}")
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1][:3] in date_month_map:
+            try:
+                day = parts[0].zfill(2)
+                month = date_month_map[parts[1][:3]]
+                date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
+                desc_line = ' '.join(parts[2:])
+                full_desc = desc_line.strip() if desc_line else "UNKNOWN"
+                if full_desc == "UNKNOWN":
+                    for offset in range(1, 3):
+                        if i + offset < len(raw_lines):
+                            possible_desc = raw_lines[i + offset].strip()
+                            if possible_desc and not re.search(r"\d{2} \w{3}", possible_desc):
+                                full_desc = possible_desc
+                                break
+                j = i + 1
+                while j < len(raw_lines):
+                    next_line = raw_lines[j].strip()
+                    if re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", next_line):
+                        break
+                    j += 1
+                i = j
+                amt_line = raw_lines[i] if i < len(raw_lines) else ""
+                amt_match = re.search(r"\d{1,3}(,\d{3})*\.\d{2}(Cr)?", amt_line)
+                if amt_match:
+                    amt_text = amt_match.group(0)
+                    txn_type = "CREDIT" if "Cr" in amt_text else "DEBIT"
+                    amount = format_amount(amt_text, txn_type)
+                    transactions.append({
+                        "date": date_obj.strftime("%Y%m%d"),
+                        "amount": amount,
+                        "desc": full_desc.strip(),
+                        "type": txn_type,
+                        "id": date_obj.strftime("%Y%m%d") + str(i + 1)
+                    })
+                    i += 1
+                else:
+                    i += 1
+            except:
+                i += 1
+        else:
+            i += 1
+    return transactions
+
         elif bank == "FNB":
+            from text_extraction import extract_fnb_transactions_from_raw_text
             txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
         else:
             txns = []
@@ -267,27 +382,25 @@ if uploaded_files:
 
     if all_txns:
         df = pd.DataFrame(all_txns)
-        # Optional: Allow editable transaction dates (including year)
-df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
-
-st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
-edited_df = st.data_editor(
-    df[["date_editable", "type", "amount", "desc"]],
-    column_config={"date_editable": "Transaction Date"},
-    num_rows="dynamic",
-    key="editor"
-)
-
-# Apply any manual date edits to transactions before export
-for i, row in edited_df.iterrows():
-    all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
-    
         df.index = df.index + 1
-        st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
-        st.dataframe(df[["date", "type", "amount", "desc"]])
+        df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
 
-        total_debits = df[df['type'] == 'DEBIT']['amount'].sum()
-        total_credits = df[df['type'] == 'CREDIT']['amount'].sum()
+        st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
+        edited_df = st.data_editor(
+            df[["date_editable", "type", "amount", "desc"]],
+            column_config={"date_editable": "Transaction Date"},
+            num_rows="dynamic",
+            key="editor"
+        )
+
+        for i, row in edited_df.iterrows():
+            all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
+
+        st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
+        st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
+
+        total_debits = sum(txn['amount'] for txn in all_txns if txn['type'] == 'DEBIT')
+        total_credits = sum(txn['amount'] for txn in all_txns if txn['type'] == 'CREDIT')
         difference = total_credits + total_debits
 
         st.markdown("### 💰 Total Summary")
