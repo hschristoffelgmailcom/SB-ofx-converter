@@ -287,7 +287,7 @@ if uploaded_files:
             st.success("Updated year of selected transactions.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
-        
+        st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
 
         total_debits = sum(txn['amount'] for txn in all_txns if txn['type'] == 'DEBIT')
         total_credits = sum(txn['amount'] for txn in all_txns if txn['type'] == 'CREDIT')
