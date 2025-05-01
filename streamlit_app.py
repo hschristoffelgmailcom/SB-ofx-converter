@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pdfplumber
 from datetime import datetime
@@ -8,10 +7,8 @@ import fitz
 import pytesseract
 from PIL import Image
 
-# Set page config
 st.set_page_config(page_title="Bank Statement to OFX Converter", layout="centered")
 
-# UI Styling
 st.markdown("""
     <style>
         .block-container {
@@ -46,7 +43,6 @@ combine_output = st.checkbox("Combine all into one OFX file")
 manual_year = st.number_input("Manually override year for all transactions (optional)", min_value=0, max_value=2100, step=1, format="%d")
 if manual_year > 0:
     st.session_state.manual_year_override = manual_year
-
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace("Cr", "").replace(",", "")
@@ -108,7 +104,6 @@ def extract_standardbank_transactions(pdf_lines, show_debug):
         except:
             continue
     return transactions
-
 def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     raw_lines = []
@@ -120,8 +115,10 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             text = pytesseract.image_to_string(img)
         raw_lines.extend(text.splitlines())
     doc.close()
+
     if show_debug:
         st.text("\n".join(raw_lines))
+
     year = extract_fnb_year(raw_lines)
     transactions = []
     date_month_map = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07",
@@ -175,65 +172,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
             i += 1
     return transactions
 
-def convert_to_ofx(transactions, account_id="021386404", bank_id="STANDARD_BANK"):
-    now = datetime.now().strftime("%Y%m%d%H%M%S")
-    header = f"""OFXHEADER:100
-DATA:OFXSGML
-VERSION:102
-SECURITY:NONE
-ENCODING:USASCII
-CHARSET:1252
-COMPRESSION:NONE
-OLDFILEUID:NONE
-NEWFILEUID:NONE
-
-<OFX>
-  <SIGNONMSGSRSV1>
-    <SONRS>
-      <STATUS>
-        <CODE>0</CODE>
-        <SEVERITY>INFO</SEVERITY>
-      </STATUS>
-      <DTSERVER>{now}</DTSERVER>
-      <LANGUAGE>ENG</LANGUAGE>
-    </SONRS>
-  </SIGNONMSGSRSV1>
-  <BANKMSGSRSV1>
-    <STMTTRNRS>
-      <TRNUID>1</TRNUID>
-      <STATUS>
-        <CODE>0</CODE>
-        <SEVERITY>INFO</SEVERITY>
-      </STATUS>
-      <STMTRS>
-        <CURDEF>ZAR</CURDEF>
-        <BANKACCTFROM>
-          <BANKID>{bank_id}</BANKID>
-          <ACCTID>{account_id}</ACCTID>
-          <ACCTTYPE>CHECKING</ACCTTYPE>
-        </BANKACCTFROM>
-        <BANKTRANLIST>"""
-    body = ""
-    for idx, t in enumerate(transactions, start=1):
-        body += f"""<STMTTRN>
-            <TRNTYPE>{t['type']}</TRNTYPE>
-            <DTPOSTED>{t['date']}</DTPOSTED>
-            <TRNAMT>{t['amount']}</TRNAMT>
-            <FITID>{t['id']}</FITID>
-            <NAME>{t['desc']}</NAME>
-        </STMTTRN>"""
-    footer = f"""</BANKTRANLIST>
-        <LEDGERBAL>
-          <BALAMT>0.00</BALAMT>
-          <DTASOF>{now}</DTASOF>
-        </LEDGERBAL>
-      </STMTRS>
-    </STMTTRNRS>
-  </BANKMSGSRSV1>
-</OFX>"""
-    return header + body + footer
-
-# Process files
+# Main logic
 all_txns = []
 if uploaded_files:
     for uploaded_file in uploaded_files:
@@ -250,38 +189,43 @@ if uploaded_files:
             txns = extract_fnb_transactions_from_raw_text(uploaded_file, show_debug)
         else:
             txns = []
+
         if txns:
             if not combine_output:
                 ofx_data = convert_to_ofx(txns)
-                st.download_button(f"Download {file_name}.ofx", data=ofx_data, file_name=f"{file_name}.ofx", mime="application/xml")
+                st.download_button(
+                    label=f"Download {file_name}.ofx",
+                    data=ofx_data,
+                    file_name=f"{file_name}.ofx",
+                    mime="application/xml"
+                )
             all_txns.extend(txns)
 
     if all_txns:
         df = pd.DataFrame(all_txns)
         df.index = df.index + 1
         df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
+        df["select"] = False  # Add checkbox column
 
         st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
         edited_df = st.data_editor(
-            df[["date_editable", "type", "amount", "desc"]],
+            df[["select", "date_editable", "type", "amount", "desc"]],
             column_config={"date_editable": "Transaction Date"},
             num_rows="dynamic",
             key="editor"
         )
+
         for i, (idx, row) in enumerate(edited_df.iterrows()):
             if i < len(all_txns):
                 all_txns[i]["date"] = row["date_editable"].strftime("%Y%m%d")
 
-        # Batch year update tool
-        st.markdown("### 🔁 Batch Update Year of Selected Transactions")
-        keyword = st.text_input("Filter transactions containing this keyword in the description")
-        new_year = st.number_input("Change year to:", min_value=2000, max_value=2100, step=1, format="%d", key="batch_year")
-        if st.button("Apply Year Change"):
-            for txn in all_txns:
-                if keyword.lower() in txn["desc"].lower():
-                    dt = datetime.strptime(txn["date"], "%Y%m%d")
-                    txn["date"] = dt.replace(year=new_year).strftime("%Y%m%d")
-            st.success(f"Updated year to {new_year} for all transactions containing '{keyword}'")
+        st.markdown("### 🗓 Batch Apply Date to Selected Transactions")
+        batch_date = st.date_input("Select new date to apply")
+        if st.button("Apply Date to Selected"):
+            for i, row in edited_df.iterrows():
+                if row["select"]:
+                    all_txns[i]["date"] = batch_date.strftime("%Y%m%d")
+            st.success("Updated selected transactions to new date.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
         st.dataframe(pd.DataFrame(all_txns)[["date", "type", "amount", "desc"]])
@@ -297,4 +241,11 @@ if uploaded_files:
 
         if combine_output:
             ofx_data = convert_to_ofx(all_txns)
-            st.download_button("🗕️ Download Combined OFX", data=ofx_data, file_name="combined_output.ofx", mime="application/xml")
+            st.download_button(
+                label="🗕️ Download Combined OFX",
+                data=ofx_data,
+                file_name="combined_output.ofx",
+                mime="application/xml"
+            )
+    else:
+        st.error("No transactions found in the uploaded file(s).")
