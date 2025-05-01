@@ -188,6 +188,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
 
     if show_debug:
         st.text("
+".join(raw_lines))  # Fixed unterminated string
 ".join(raw_lines))
 
     year = extract_fnb_year(raw_lines)
