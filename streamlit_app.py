@@ -38,16 +38,12 @@ st.markdown("""
 
 st.title("📄 Bank Statement to OFX Converter")
 
-# Bank selection
 bank = st.selectbox("Select your bank", ["Standard Bank", "FNB"])
 current_bank = bank
-
-# Upload and settings
 uploaded_files = st.file_uploader("Upload one or more bank statements (PDF only)", type=["pdf"], accept_multiple_files=True)
 show_debug = st.checkbox("Show debug view")
 combine_output = st.checkbox("Combine all into one OFX file")
 
-# Helper functions
 def format_amount(val, txn_type=None):
     if current_bank == "FNB":
         val = val.replace("Cr", "").replace(",", "")
@@ -186,9 +182,8 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
         raw_lines.extend(text.splitlines())
     doc.close()
 
-if show_debug:
-    st.text("\n".join(raw_lines))
-
+    if show_debug:
+        st.text("\n".join(raw_lines))
 
     year = extract_fnb_year(raw_lines)
     transactions = []
@@ -206,8 +201,6 @@ if show_debug:
                 date_obj = datetime.strptime(f"{year}{month}{day}", "%Y%m%d")
                 desc_line = ' '.join(parts[2:])
                 full_desc = desc_line.strip() if desc_line else "UNKNOWN"
-
-                # Scan next few lines for better description if unknown
                 if full_desc == "UNKNOWN":
                     for offset in range(1, 3):
                         if i + offset < len(raw_lines):
@@ -215,7 +208,6 @@ if show_debug:
                             if possible_desc and not re.search(r"\d{2} \w{3}", possible_desc):
                                 full_desc = possible_desc
                                 break
-
                 j = i + 1
                 while j < len(raw_lines):
                     next_line = raw_lines[j].strip()
@@ -245,7 +237,6 @@ if show_debug:
             i += 1
     return transactions
 
-# Run conversion for each file
 all_txns = []
 if uploaded_files:
     for uploaded_file in uploaded_files:
@@ -292,7 +283,7 @@ if uploaded_files:
         if combine_output:
             ofx_data = convert_to_ofx(all_txns)
             st.download_button(
-                label="🗅️ Download Combined OFX",
+                label="🗕️ Download Combined OFX",
                 data=ofx_data,
                 file_name="combined_output.ofx",
                 mime="application/xml"
