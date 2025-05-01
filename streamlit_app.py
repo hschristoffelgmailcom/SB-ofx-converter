@@ -183,7 +183,9 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc.close()
 
     if show_debug:
-st.text("\n".join(raw_lines))
+        st.text("
+".join(raw_lines))
+".join(raw_lines))
 
     # Extract year from "Statement Date" line BEFORE any transaction parsing
     year = extract_fnb_year(raw_lines)
@@ -272,6 +274,25 @@ if uploaded_files:
         df = pd.DataFrame(all_txns)
         df.index = df.index + 1
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
+
+        # Add manual year override column
+        df["manual_year"] = df["date"].str[:4].astype(int)
+        edited_df = st.data_editor(
+            df[["date", "type", "amount", "desc", "manual_year"]],
+            column_config={"manual_year": st.column_config.NumberColumn("Year Override", min_value=1900, max_value=2100)},
+            num_rows="dynamic"
+        )
+
+        # Apply year override to date field
+        for idx, row in edited_df.iterrows():
+            try:
+                old_date = datetime.strptime(str(row["date"]), "%Y%m%d")
+                new_date = old_date.replace(year=row["manual_year"])
+                df.at[idx, "date"] = new_date.strftime("%Y%m%d")
+            except:
+                continue
+
+        st.dataframe(df.drop(columns=["manual_year"]))} total transactions from {len(uploaded_files)} file(s).")
                 # Allow manual override of year for selected rows
         df["manual_year"] = df["date"].str[:4].astype(int)
         edited_df = st.data_editor(
