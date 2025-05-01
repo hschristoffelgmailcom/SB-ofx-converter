@@ -264,16 +264,16 @@ if uploaded_files:
     if all_txns:
         df = pd.DataFrame(all_txns)
         df.index = df.index + 1
-        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+        df["date_editable"] = pd.to_datetime(df["date"], format="%Y%m%d")
         df["select"] = False
 
         st.markdown("### ✏️ Edit Transaction Dates (including year if needed)")
         edited_df = st.data_editor(
-            df[["select", "date", "type", "amount", "desc"]],
+            df[["select", "date_editable", "type", "amount", "desc"]],
             num_rows="dynamic",
-            use_container_width=True,
-            hide_index=True
-        )
+            use_container_width=True
+        ,
+            hide_index=True)
 
         batch_date = st.date_input("🗖️ Date to apply to selected transactions")
         if st.button("Apply selected year to checked transactions"):
@@ -283,7 +283,7 @@ if uploaded_files:
                     txn_index = row.name - 1
                     old_date = datetime.strptime(all_txns[txn_index]["date"], "%Y%m%d")
                     new_date = old_date.replace(year=selected_year)
-                    df.at[txn_index + 1, "date"] = new_date
+                    all_txns[txn_index]["date"] = new_date.strftime("%Y%m%d")
             st.success("Updated year of selected transactions.")
 
         st.success(f"Extracted {len(all_txns)} total transactions from {len(uploaded_files)} file(s).")
