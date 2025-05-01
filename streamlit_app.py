@@ -187,7 +187,7 @@ def extract_fnb_transactions_from_raw_text(pdf_file, show_debug=False):
     doc.close()
 
     if show_debug:
-        st.text("
+        st.text(
 ".join(raw_lines))  # fixed debug output
 ".join(raw_lines))  # Fixed unterminated string
 ".join(raw_lines))
