@@ -232,8 +232,9 @@ NEWFILEUID:NONE
 </OFX>"""
     return header + body + footer
 
-# File processing and editable table
 all_txns = []
+file_name_map = {}
+
 if uploaded_files:
     for uploaded_file in uploaded_files:
         file_name = uploaded_file.name.rsplit('.', 1)[0]
@@ -251,14 +252,7 @@ if uploaded_files:
             txns = []
 
         if txns:
-            if not combine_output:
-                ofx_data = convert_to_ofx(txns)
-                st.download_button(
-                    label=f"Download {file_name}.ofx",
-                    data=ofx_data,
-                    file_name=f"{file_name}.ofx",
-                    mime="application/xml"
-                )
+            file_name_map.update({len(all_txns) + i: file_name for i in range(len(txns))})
             all_txns.extend(txns)
 
     if all_txns:
@@ -271,11 +265,11 @@ if uploaded_files:
         edited_df = st.data_editor(
             df[["select", "date_editable", "type", "amount", "desc"]],
             num_rows="dynamic",
-            use_container_width=True
-        ,
-            hide_index=True)
+            use_container_width=True,
+            hide_index=True
+        )
 
-        batch_date = st.date_input("🗖️ Date to apply to selected transactions")
+        batch_date = st.date_input("🗶️ Date to apply to selected transactions")
         if st.button("Apply selected year to checked transactions"):
             selected_year = batch_date.year
             for idx, row in edited_df.iterrows():
@@ -301,10 +295,23 @@ if uploaded_files:
         if combine_output:
             ofx_data = convert_to_ofx(all_txns)
             st.download_button(
-                label="🗕️ Download Combined OFX",
+                label="🗅️ Download Combined OFX",
                 data=ofx_data,
                 file_name="combined_output.ofx",
                 mime="application/xml"
             )
+        else:
+            grouped = {}
+            for i, txn in enumerate(all_txns):
+                file_base = file_name_map.get(i, "output")
+                grouped.setdefault(file_base, []).append(txn)
+            for file_base, txns in grouped.items():
+                ofx_data = convert_to_ofx(txns)
+                st.download_button(
+                    label=f"Download {file_base}.ofx",
+                    data=ofx_data,
+                    file_name=f"{file_base}.ofx",
+                    mime="application/xml"
+                )
     else:
         st.error("No transactions found in the uploaded file(s).")
